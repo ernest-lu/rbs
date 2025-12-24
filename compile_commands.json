@@ -1,0 +1,7 @@
+[
+  {
+    "directory": "/Users/ernest/repo/learnrbs",
+    "command": "g++-14 -c -o optimizer.o optimizer.cpp",
+    "file": "optimizer.cpp"
+  }
+]

@@ -1,5 +1,7 @@
 import random
 import datetime
+import itertools
+from more_itertools import distinct_permutations
 
 random.seed(datetime.datetime.now().timestamp())
 
@@ -25,39 +27,44 @@ def is_valid(sequence):
 
 def generate_all_sequences(length):
     """
-    Generates all possible bracket sequences of a given length.
+    Generates all possible bracket sequences of a given length with an equal
+    number of opening and closing brackets.
     """
-    if length == 0:
-        return [""]
+    if length % 2 != 0:
+        return []
 
-    sequences = []
-    for i in range(2**length):
-        bin_str = bin(i)[2:].zfill(length)
-        sequence = bin_str.replace("0", "(").replace("1", ")")
-        sequences.append(sequence)
-    return sequences
+    half_length = length // 2
+    base = ["("] * half_length + [")"] * half_length
+
+    # Using set to store unique permutations
+    sequences = set("".join(p) for p in distinct_permutations(base))
+
+    return list(sequences)
 
 
 def main():
     """
     Generates a dataset of bracket sequences and writes them to a file.
     """
-    num_sequences = 300
-    length = 10
+    length = 14
 
     all_sequences = generate_all_sequences(length)
+    random.shuffle(all_sequences)
 
-    if num_sequences > len(all_sequences):
-        raise ValueError(
-            "Number of requested sequences is greater than possible sequences."
-        )
+    train_size = int(len(all_sequences) * 0.875)
+    train_data = all_sequences[:train_size]
+    test_data = all_sequences[train_size:]
 
-    dataset = random.sample(all_sequences, num_sequences)
+    train_out_file_name = "train_data.txt"
+    test_out_file_name = "test_data.txt"
 
-    out_file_name = "test_data.txt"
+    with open(train_out_file_name, "w") as f:
+        for sequence in train_data:
+            valid = is_valid(sequence)
+            f.write(f"{sequence} {valid}\n")
 
-    with open(out_file_name, "w") as f:
-        for sequence in dataset:
+    with open(test_out_file_name, "w") as f:
+        for sequence in test_data:
             valid = is_valid(sequence)
             f.write(f"{sequence} {valid}\n")
 

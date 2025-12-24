@@ -13,7 +13,7 @@ template <typename T, typename = void> struct is_iterable : false_type {};templa
 // clang-format on
 
 int main() {
-  constexpr int NUM_INPUT_VARIABLES = 10;
+  constexpr int NUM_INPUT_VARIABLES = 14;
   constexpr int NUM_MONOMIALS = 1 << NUM_INPUT_VARIABLES;
 
   struct DataPoint {
@@ -71,24 +71,29 @@ int main() {
     for (int i = 0; i < NUM_MONOMIALS; ++i) {
       result += weights[i] * monomial_values[i];
     }
-    return 1.0 / (1.0 + exp(-result));
+    // return clamped result
+    return max(0.0, min(1.0, result));
+    // return result
+    // result with an activation function
+    // return 1.0 / (1.0 + exp(-result));
   };
 
-  const int EPOCHS = 1000;
-  const double LEARNING_RATE = 0.07;
+  const int EPOCHS = 500;
+  const double LEARNING_RATE = 0.04;
   const double BETA = 0.9;
 
   cout << "Loading dataset from 'bracket_sequences.txt'..." << endl;
   vector<DataPoint> dataset;
-  load_dataset_from_file("bracket_sequences.txt", dataset);
+  load_dataset_from_file("train_data.txt", dataset);
+  vector<DataPoint> test_dataset;
+  load_dataset_from_file("test_data.txt", test_dataset);
   if (dataset.empty()) {
     cerr << "Dataset is empty or file could not be read. Exiting." << endl;
     return 1;
   }
   cout << "Dataset loaded with " << dataset.size() << " data points." << endl;
 
-  // --- 3. Initialize model weights ---
-  mt19937 rng(69); // Fixed seed for reproducibility
+  mt19937 rng(69);
   uniform_real_distribution<double> uniform_dist(0.0, 1.0);
   vector<double> model_weights(NUM_MONOMIALS);
   for (int i = 0; i < NUM_MONOMIALS; ++i) {
@@ -96,7 +101,6 @@ int main() {
   }
   vector<double> velocity(NUM_MONOMIALS, 0.0);
 
-  // --- 4. Gradient Descent Optimization ---
   cout << "\nStarting optimization using Gradient Descent..." << endl;
   cout << fixed << setprecision(6);
 
@@ -108,7 +112,6 @@ int main() {
       vector<double> monomial_values;
       calculate_all_monomials(dp.inputs, monomial_values);
       double prediction = evaluate(model_weights, monomial_values);
-      prediction = round(prediction);
       double error = prediction - dp.output;
       mean_squared_error += error * error;
       for (int i = 0; i < NUM_MONOMIALS; ++i) {
@@ -117,8 +120,23 @@ int main() {
     }
 
     mean_squared_error /= dataset.size();
+#ifdef FILE_OUT
+    double test_mean_squared_error = 0.0;
+    for (const auto &dp : test_dataset) {
+      vector<double> monomial_values;
+      calculate_all_monomials(dp.inputs, monomial_values);
+      double prediction = evaluate(model_weights, monomial_values);
+      prediction = round(prediction);
+      double error = prediction - dp.output;
+      test_mean_squared_error += error * error;
+    }
+    test_mean_squared_error /= test_dataset.size();
+    cout << epoch + 1 << " " << mean_squared_error << " "
+         << test_mean_squared_error << endl;
+#else
     cout << "Epoch " << setw(3) << epoch + 1 << "/" << EPOCHS
          << ", MSE: " << mean_squared_error << endl;
+#endif
 
     for (int i = 0; i < NUM_MONOMIALS; ++i) {
       double grad_component = 2.0 * gradient[i] / dataset.size();
@@ -129,9 +147,6 @@ int main() {
 
   debug(model_weights);
 
-  vector<DataPoint> test_dataset;
-  load_dataset_from_file("test_data.txt", test_dataset);
-
   cout << "\nOptimization finished." << endl;
   double final_mse = 0.0;
   for (const auto &dp : test_dataset) {
@@ -140,6 +155,19 @@ int main() {
     double prediction = evaluate(model_weights, monomial_values);
     prediction = round(prediction);
     final_mse += pow(prediction - dp.output, 2);
+
+    auto format_vec = [](const vector<double> &in) -> string {
+      string ret = "";
+      for (auto u : in) {
+        if (u == 0.0)
+          ret += ')';
+        else
+          ret += '(';
+      }
+      return ret;
+    };
+    cout << format_vec(dp.inputs) << " Prediction: " << prediction
+         << ", Output: " << dp.output << endl;
   }
   final_mse /= dataset.size();
   cout << "Final MSE on dataset: " << final_mse << endl;
